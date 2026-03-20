@@ -1,16 +1,20 @@
 "use client"
 
 import { useState } from "react"
+import JSZip from "jszip"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { parseExamHtml } from "@/lib/parser"
+import { generatePdf, ImageData } from "@/lib/pdf-generator"
 
 type Format = "docx" | "pdf" | "gdoc"
 
 export default function Page() {
   const [htmlFile, setHtmlFile] = useState<File | null>(null)
   const [zipFile, setZipFile] = useState<File | null>(null)
-  const [format, setFormat] = useState<Format>("docx")
+  const [format, setFormat] = useState<Format>("pdf")
+  const [loading, setLoading] = useState(false)
 
   function handleHtmlChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -24,9 +28,65 @@ export default function Page() {
     setZipFile(file)
   }
 
-  function handleProcess() {
+  async function handleProcess() {
     if (!htmlFile || !zipFile) return
-    console.log("Procesar", { htmlFile: htmlFile.name, zipFile: zipFile.name, format })
+    setLoading(true)
+
+    try {
+      // Parse HTML
+      const htmlText = await htmlFile.text()
+      const exam = parseExamHtml(htmlText)
+
+      // Extract images from ZIP as base64 data URLs with natural dimensions
+      const zip = await JSZip.loadAsync(await zipFile.arrayBuffer())
+      const images: Record<string, ImageData> = {}
+
+      await Promise.all(
+        Object.entries(zip.files).map(async ([path, file]) => {
+          try {
+            if (file.dir) return
+            const filename = path.split("/").pop()
+            // Skip Mac metadata files and non-image files
+            if (!filename || filename.startsWith("._")) return
+            const ext = filename.split(".").pop()?.toLowerCase()
+            if (!["png", "jpg", "jpeg", "gif"].includes(ext ?? "")) return
+
+            const base64 = await file.async("base64")
+            const mime = ext === "gif" ? "image/gif" : `image/${ext}`
+            const src = `data:${mime};base64,${base64}`
+
+            // Load image in browser to get natural dimensions
+            const { width, height } = await new Promise<{ width: number; height: number }>(
+              (resolve) => {
+                const img = new window.Image()
+                img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight })
+                img.onerror = () => resolve({ width: 0, height: 0 })
+                img.src = src
+              }
+            )
+
+            if (width === 0 || height === 0) return
+            images[filename] = { src, width, height }
+          } catch {
+            // skip files that fail to process
+          }
+        })
+      )
+
+      if (format === "pdf") {
+        const blob = await generatePdf(exam, images)
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `${exam.title}.pdf`
+        a.click()
+        URL.revokeObjectURL(url)
+      }
+    } catch (err) {
+      console.error("Error al procesar:", err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const canProcess = !!htmlFile && !!zipFile
@@ -93,8 +153,13 @@ export default function Page() {
             <ToggleGroupItem value="pdf">pdf</ToggleGroupItem>
             <ToggleGroupItem value="gdoc">gdoc</ToggleGroupItem>
           </ToggleGroup>
-          <Button size="lg" className="flex-1" disabled={!canProcess} onClick={handleProcess}>
-            Convertir
+          <Button
+            size="lg"
+            className="flex-1"
+            disabled={!canProcess || loading}
+            onClick={handleProcess}
+          >
+            {loading ? "Procesando..." : "Convertir"}
           </Button>
         </div>
       </div>
