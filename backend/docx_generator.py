@@ -7,7 +7,7 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Emu, Pt
+from docx.shared import Cm, Emu, Pt
 from PIL import Image as PilImage
 
 from exam_parser import ContentNode, ImageNode, InfoBlock, ParsedExam, Question, TextNode
@@ -17,13 +17,17 @@ from exam_parser import ContentNode, ImageNode, InfoBlock, ParsedExam, Question,
 # ---------------------------------------------------------------------------
 
 FONT_NAME = "Calibri"
-FONT_SIZE_PT = 11
+FONT_SIZE_PT = 10
 
 # 96 DPI: 1 pixel = 914400/96 = 9525 EMU
 PX_TO_EMU = 9525
 
-# A4 body width: 21cm - 2×2.54cm margins = 15.92cm
-MAX_WIDTH_EMU = int(15.92 / 2.54 * 914400)  # ≈ 5,703,840 EMU
+# Page margins: half of Word defaults (~1.27cm top/bottom, ~1.59cm left/right)
+MARGIN_TB_CM = 1.27   # top / bottom
+MARGIN_LR_CM = 1.59   # left / right
+
+# A4 body width: 21cm - 2×1.59cm = 17.82cm
+MAX_WIDTH_EMU = int(17.82 / 2.54 * 914400)  # ≈ 6,378,330 EMU
 
 
 # ---------------------------------------------------------------------------
@@ -139,14 +143,13 @@ def _render_info_block(doc: Document, item: InfoBlock, images: dict[str, bytes])
         para = doc.add_paragraph()
         para.paragraph_format.space_after = Pt(0)
         if i == 0:
-            # Header line — bold, larger
+            # Header line — same size, no bold
             para.paragraph_format.space_before = Pt(4)
             for node in line:
                 if isinstance(node, TextNode):
                     run = para.add_run(node.value)
-                    run.bold = True
                     run.font.name = FONT_NAME
-                    run.font.size = Pt(13)
+                    run.font.size = Pt(FONT_SIZE_PT)
                 elif isinstance(node, ImageNode):
                     img_bytes = _resolve_image(node.src, images)
                     if img_bytes:
@@ -171,6 +174,13 @@ def generate_docx(exam: ParsedExam, images: dict[str, bytes]) -> bytes:
     for para in list(doc.paragraphs):
         para._element.getparent().remove(para._element)
 
+    # Page margins
+    section = doc.sections[0]
+    section.top_margin = Cm(MARGIN_TB_CM)
+    section.bottom_margin = Cm(MARGIN_TB_CM)
+    section.left_margin = Cm(MARGIN_LR_CM)
+    section.right_margin = Cm(MARGIN_LR_CM)
+
     # Title
     title_para = doc.add_paragraph()
     title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -178,7 +188,7 @@ def generate_docx(exam: ParsedExam, images: dict[str, bytes]) -> bytes:
     run = title_para.add_run(exam.title)
     run.bold = True
     run.font.name = FONT_NAME
-    run.font.size = Pt(14)
+    run.font.size = Pt(FONT_SIZE_PT)
 
     for i, item in enumerate(exam.items):
         if i > 0:
@@ -188,17 +198,33 @@ def generate_docx(exam: ParsedExam, images: dict[str, bytes]) -> bytes:
             _render_info_block(doc, item, images)
 
         elif isinstance(item, Question):
-            # Question number
+            q_lines = _split_lines(item.content) if item.content else []
+
+            # "Ejercicio N: " + first line of content on the same paragraph
             num_para = doc.add_paragraph()
             num_para.paragraph_format.space_before = Pt(12)
             num_para.paragraph_format.space_after = Pt(0)
-            run = num_para.add_run(f"Ejercicio {item.number}.")
+            run = num_para.add_run(f"Ejercicio {item.number}: ")
             run.bold = True
             run.font.name = FONT_NAME
             run.font.size = Pt(FONT_SIZE_PT)
 
-            # Question body
-            _render_nodes(doc, item.content, images)
+            if q_lines:
+                for node in q_lines[0]:
+                    if isinstance(node, TextNode):
+                        r = num_para.add_run(node.value)
+                        r.font.name = FONT_NAME
+                        r.font.size = Pt(FONT_SIZE_PT)
+                    elif isinstance(node, ImageNode):
+                        img_bytes = _resolve_image(node.src, images)
+                        if img_bytes:
+                            try:
+                                w_emu, h_emu = _image_dims(img_bytes)
+                                num_para.add_run().add_picture(BytesIO(img_bytes), width=Emu(w_emu), height=Emu(h_emu))
+                            except Exception:
+                                num_para.add_run(f"[imagen: {node.src}]")
+                for line in q_lines[1:]:
+                    _build_paragraph(doc, line, images)
 
             # Answer options — letter and answer text on the same line
             for opt in item.options:

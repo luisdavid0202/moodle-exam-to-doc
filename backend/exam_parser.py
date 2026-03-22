@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Union
 
-from bs4 import BeautifulSoup, NavigableString, Tag
+from bs4 import BeautifulSoup, Comment, NavigableString, Tag
 
 # ---------------------------------------------------------------------------
 # Data model
@@ -96,6 +96,9 @@ def _append_text(nodes: list[ContentNode], text: str) -> None:
 
 def _walk(node, nodes: list[ContentNode]) -> bool:
     """Recursively walk a BS4 node and append ContentNodes. Returns True if any content was added."""
+    if isinstance(node, Comment):
+        return False
+
     if isinstance(node, NavigableString):
         # Collapse source-code newlines; keep &nbsp; as regular space
         text = str(node).replace("\n", " ").replace("\u00a0", " ")
@@ -134,6 +137,13 @@ def _walk(node, nodes: list[ContentNode]) -> bool:
             return True
         return False
 
+    # Before entering a block element, ensure there's a line break separating it
+    # from any preceding inline content (e.g. bare text node before a <p>).
+    if tag in BLOCK_TAGS and nodes:
+        last = nodes[-1]
+        if isinstance(last, TextNode) and last.value and not last.value.endswith("\n"):
+            _append_text(nodes, "\n")
+
     if tag == "li":
         _append_text(nodes, "• ")
 
@@ -164,10 +174,14 @@ def _clean(nodes: list[ContentNode], strip_leading_number: bool = False) -> list
             result.append(n)
             stripped = True  # don't strip after first non-text node
 
-    # Trim leading/trailing \n from boundary text nodes
-    for edge in ([result[0]] if result else []) + ([result[-1]] if len(result) > 1 else []):
-        if isinstance(edge, TextNode):
-            edge.value = edge.value.strip("\n").strip()
+    # Only strip leading whitespace/newlines from the first node
+    # and trailing whitespace/newlines from the last node.
+    # Interior \n separators (e.g. between text and an image) must be preserved.
+    if result:
+        if isinstance(result[0], TextNode):
+            result[0].value = result[0].value.lstrip("\n").lstrip()
+        if isinstance(result[-1], TextNode):
+            result[-1].value = result[-1].value.rstrip("\n").rstrip()
 
     return [n for n in result if not (isinstance(n, TextNode) and not n.value)]
 
