@@ -18,6 +18,7 @@ app.add_middleware(
     allow_origins=["http://localhost:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 
@@ -63,7 +64,10 @@ async def convert(
     exam = parse_exam_html(html)
     docx_bytes = generate_docx(exam, images)
 
-    safe_title = "".join(c for c in exam.title if c.isalnum() or c in " _-").strip() or "examen"
+    html_stem = html_file.filename.rsplit(".", 1)[0] if html_file.filename else ""
+    safe_title = "".join(c for c in html_stem if c.isalnum() or c in " _-").strip()
+    if not safe_title:
+        safe_title = "".join(c for c in exam.title if c.isalnum() or c in " _-").strip() or "examen"
     filename = f"{safe_title}.docx"
     media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
