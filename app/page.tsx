@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { parseExamHtml } from "@/lib/parser"
 import { generatePdf, ImageData } from "@/lib/pdf-generator"
+import { generateDocx } from "@/lib/docx-generator"
 
-type Format = "docx" | "pdf" | "gdoc"
+type Format = "docx" | "pdf"
 
 export default function Page() {
   const [htmlFile, setHtmlFile] = useState<File | null>(null)
@@ -73,15 +74,23 @@ export default function Page() {
         })
       )
 
+      let blob: Blob
+      let filename: string
+
       if (format === "pdf") {
-        const blob = await generatePdf(exam, images)
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement("a")
-        a.href = url
-        a.download = `${exam.title}.pdf`
-        a.click()
-        URL.revokeObjectURL(url)
+        blob = await generatePdf(exam, images)
+        filename = `${exam.title}.pdf`
+      } else {
+        blob = await generateDocx(exam, images)
+        filename = `${exam.title}.docx`
       }
+
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
     } catch (err) {
       console.error("Error al procesar:", err)
     } finally {
@@ -149,9 +158,8 @@ export default function Page() {
             onValueChange={(v) => v && setFormat(v as Format)}
             className="border border-input rounded-md h-8"
           >
-            <ToggleGroupItem value="docx">docx</ToggleGroupItem>
             <ToggleGroupItem value="pdf">pdf</ToggleGroupItem>
-            <ToggleGroupItem value="gdoc">gdoc</ToggleGroupItem>
+            <ToggleGroupItem value="docx">docx</ToggleGroupItem>
           </ToggleGroup>
           <Button
             size="lg"
