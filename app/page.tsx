@@ -1,89 +1,57 @@
 "use client"
 
 import { useState } from "react"
-import JSZip from "jszip"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { parseExamHtml } from "@/lib/parser"
-import { generatePdf, ImageData } from "@/lib/pdf-generator"
-import { generateDocx } from "@/lib/docx-generator"
 
 type Format = "docx" | "pdf"
+
+const API_URL = "http://localhost:8000"
 
 export default function Page() {
   const [htmlFile, setHtmlFile] = useState<File | null>(null)
   const [zipFile, setZipFile] = useState<File | null>(null)
-  const [format, setFormat] = useState<Format>("pdf")
+  const [format, setFormat] = useState<Format>("docx")
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   function handleHtmlChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     setHtmlFile(file)
+    setError(null)
   }
 
   function handleZipChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     setZipFile(file)
+    setError(null)
   }
 
   async function handleProcess() {
     if (!htmlFile || !zipFile) return
     setLoading(true)
+    setError(null)
 
     try {
-      // Parse HTML
-      const htmlText = await htmlFile.text()
-      const exam = parseExamHtml(htmlText)
+      const body = new FormData()
+      body.append("html_file", htmlFile)
+      body.append("zip_file", zipFile)
+      body.append("format", format)
 
-      // Extract images from ZIP as base64 data URLs with natural dimensions
-      const zip = await JSZip.loadAsync(await zipFile.arrayBuffer())
-      const images: Record<string, ImageData> = {}
+      const res = await fetch(`${API_URL}/convert`, { method: "POST", body })
 
-      await Promise.all(
-        Object.entries(zip.files).map(async ([path, file]) => {
-          try {
-            if (file.dir) return
-            const filename = path.split("/").pop()
-            // Skip Mac metadata files and non-image files
-            if (!filename || filename.startsWith("._")) return
-            const ext = filename.split(".").pop()?.toLowerCase()
-            if (!["png", "jpg", "jpeg", "gif"].includes(ext ?? "")) return
-
-            const base64 = await file.async("base64")
-            const mime = ext === "gif" ? "image/gif" : `image/${ext}`
-            const src = `data:${mime};base64,${base64}`
-
-            // Load image in browser to get natural dimensions
-            const { width, height } = await new Promise<{ width: number; height: number }>(
-              (resolve) => {
-                const img = new window.Image()
-                img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight })
-                img.onerror = () => resolve({ width: 0, height: 0 })
-                img.src = src
-              }
-            )
-
-            if (width === 0 || height === 0) return
-            images[filename] = { src, width, height }
-          } catch {
-            // skip files that fail to process
-          }
-        })
-      )
-
-      let blob: Blob
-      let filename: string
-
-      if (format === "pdf") {
-        blob = await generatePdf(exam, images)
-        filename = `${exam.title}.pdf`
-      } else {
-        blob = await generateDocx(exam, images)
-        filename = `${exam.title}.docx`
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({ detail: res.statusText }))
+        throw new Error(detail.detail ?? res.statusText)
       }
+
+      const blob = await res.blob()
+      const disposition = res.headers.get("content-disposition") ?? ""
+      const match = disposition.match(/filename="([^"]+)"/)
+      const filename = match?.[1] ?? `examen.${format}`
 
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -92,7 +60,7 @@ export default function Page() {
       a.click()
       URL.revokeObjectURL(url)
     } catch (err) {
-      console.error("Error al procesar:", err)
+      setError(err instanceof Error ? err.message : "Error desconocido")
     } finally {
       setLoading(false)
     }
@@ -158,8 +126,8 @@ export default function Page() {
             onValueChange={(v) => v && setFormat(v as Format)}
             className="border border-input rounded-md h-8"
           >
-            <ToggleGroupItem value="pdf">pdf</ToggleGroupItem>
             <ToggleGroupItem value="docx">docx</ToggleGroupItem>
+            <ToggleGroupItem value="pdf">pdf</ToggleGroupItem>
           </ToggleGroup>
           <Button
             size="lg"
@@ -170,6 +138,10 @@ export default function Page() {
             {loading ? "Procesando..." : "Convertir"}
           </Button>
         </div>
+
+        {error && (
+          <p className="text-sm text-destructive">{error}</p>
+        )}
       </div>
     </div>
   )
