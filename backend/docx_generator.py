@@ -23,11 +23,11 @@ FONT_SIZE_PT = 10
 PX_TO_EMU = 9525
 
 # Page margins: half of Word defaults (~1.27cm top/bottom, ~1.59cm left/right)
-MARGIN_TB_CM = 1.27   # top / bottom
-MARGIN_LR_CM = 1.59   # left / right
+MARGIN_TB_CM = 1.0   # top / bottom
+MARGIN_LR_CM = 1.0   # left / right
 
-# A4 body width: 21cm - 2×1.59cm = 17.82cm
-MAX_WIDTH_EMU = int(17.82 / 2.54 * 914400)  # ≈ 6,378,330 EMU
+# A4 body width: 21cm - 2×1.0cm = 19.0cm
+MAX_WIDTH_EMU = int(19.0 / 2.54 * 914400)  # ≈ 6,803,150 EMU
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +123,7 @@ def _render_nodes(doc: Document, nodes: list[ContentNode], images: dict[str, byt
 def _add_divider(doc: Document) -> None:
     """Add a horizontal rule paragraph."""
     para = doc.add_paragraph()
-    para.paragraph_format.space_before = Pt(10)
+    para.paragraph_format.space_before = Pt(0)
     para.paragraph_format.space_after = Pt(10)
     pPr = para._p.get_or_add_pPr()
     pBdr = OxmlElement("w:pBdr")
@@ -140,10 +140,10 @@ def _render_info_block(doc: Document, item: InfoBlock, images: dict[str, bytes])
     """Render an InfoBlock: first line bold+large (the 'Preguntas X a Y' header), rest normal."""
     lines = _split_lines(item.content)
     for i, line in enumerate(lines):
-        para = doc.add_paragraph()
-        para.paragraph_format.space_after = Pt(0)
         if i == 0:
             # Header line — same size, no bold
+            para = doc.add_paragraph()
+            para.paragraph_format.space_after = Pt(0)
             para.paragraph_format.space_before = Pt(4)
             for node in line:
                 if isinstance(node, TextNode):
