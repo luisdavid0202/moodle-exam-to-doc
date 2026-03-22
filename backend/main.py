@@ -34,7 +34,7 @@ async def convert(
     format: str = Form(default="docx"),
 ):
     if format != "docx":
-        raise HTTPException(status_code=400, detail=f"Formato '{format}' no soportado aún. Usa 'docx'.")
+        raise HTTPException(status_code=400, detail=f"Format '{format}' is not supported. Use 'docx'.")
 
     html_bytes = await html_file.read()
     html = html_bytes.decode("utf-8", errors="replace")
@@ -67,7 +67,7 @@ async def convert(
     html_stem = html_file.filename.rsplit(".", 1)[0] if html_file.filename else ""
     safe_title = "".join(c for c in html_stem if c.isalnum() or c in " _-").strip()
     if not safe_title:
-        safe_title = "".join(c for c in exam.title if c.isalnum() or c in " _-").strip() or "examen"
+        safe_title = "".join(c for c in exam.title if c.isalnum() or c in " _-").strip() or "exam"
     filename = f"{safe_title}.docx"
     media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 

@@ -1,21 +1,46 @@
-# Next.js template
+# Moodle Exam to Doc
 
-This is a Next.js template with shadcn/ui.
+Converts Moodle quiz exports (HTML format) into Word `.docx` documents, preserving questions, answer options, and images.
 
-## Adding components
+## Structure
 
-To add components to your app, run the following command:
+```
+├── frontend/   # Web interface (Next.js)
+└── backend/    # Conversion API (FastAPI + Python)
+```
+
+Each folder has its own `README.md` with setup and usage instructions.
+
+## Quick start
+
+### Backend
 
 ```bash
-npx shadcn@latest add button
+cd backend
+python -m venv .venv
+pip install -r requirements.txt
 ```
 
-This will place the ui components in the `components` directory.
+Activate the virtual environment:
 
-## Using components
+| Platform | Command |
+|----------|---------|
+| macOS / Linux | `source .venv/bin/activate` |
+| Windows (cmd) | `.venv\Scripts\activate.bat` |
+| Windows (PowerShell) | `.venv\Scripts\Activate.ps1` |
 
-To use the components in your app, import them as follows:
+Then start the server:
 
-```tsx
-import { Button } from "@/components/ui/button";
+```bash
+uvicorn main:app --reload
 ```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000), upload the `.html` file and its `.zip` image bundle, and download the generated document.

@@ -3,16 +3,12 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-
-type Format = "docx" | "pdf"
 
 const API_URL = "http://localhost:8000"
 
 export default function Page() {
   const [htmlFile, setHtmlFile] = useState<File | null>(null)
   const [zipFile, setZipFile] = useState<File | null>(null)
-  const [format, setFormat] = useState<Format>("docx")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -39,7 +35,7 @@ export default function Page() {
       const body = new FormData()
       body.append("html_file", htmlFile)
       body.append("zip_file", zipFile)
-      body.append("format", format)
+      body.append("format", "docx")
 
       const res = await fetch(`${API_URL}/convert`, { method: "POST", body })
 
@@ -51,7 +47,7 @@ export default function Page() {
       const blob = await res.blob()
       const disposition = res.headers.get("content-disposition") ?? ""
       const match = disposition.match(/filename="([^"]+)"/)
-      const filename = match?.[1] ?? `examen.${format}`
+      const filename = match?.[1] ?? "exam.docx"
 
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -60,7 +56,7 @@ export default function Page() {
       a.click()
       URL.revokeObjectURL(url)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido")
+      setError(err instanceof Error ? err.message : "Unknown error")
     } finally {
       setLoading(false)
     }
@@ -82,8 +78,8 @@ export default function Page() {
             <span className="text-foreground font-medium">{htmlFile.name}</span>
           ) : (
             <>
-              <span>Selecciona un archivo <strong>.html</strong></span>
-              <span className="text-xs">o haz clic para explorar</span>
+              <span>Select an <strong>.html</strong> file</span>
+              <span className="text-xs">or click to browse</span>
             </>
           )}
           <Input
@@ -104,8 +100,8 @@ export default function Page() {
             <span className="text-foreground font-medium">{zipFile.name}</span>
           ) : (
             <>
-              <span>Selecciona el <strong>.zip</strong> de imágenes</span>
-              <span className="text-xs">carpeta html_files</span>
+              <span>Select the images <strong>.zip</strong></span>
+              <span className="text-xs">html_files folder</span>
             </>
           )}
           <Input
@@ -117,27 +113,14 @@ export default function Page() {
           />
         </label>
 
-        {/* Format selector + Process button */}
-        <div className="flex gap-2">
-          <ToggleGroup
-            type="single"
-            size="lg"
-            value={format}
-            onValueChange={(v) => v && setFormat(v as Format)}
-            className="border border-input rounded-md h-8"
-          >
-            <ToggleGroupItem value="docx">docx</ToggleGroupItem>
-            <ToggleGroupItem value="pdf">pdf</ToggleGroupItem>
-          </ToggleGroup>
-          <Button
-            size="lg"
-            className="flex-1"
-            disabled={!canProcess || loading}
-            onClick={handleProcess}
-          >
-            {loading ? "Procesando..." : "Convertir"}
-          </Button>
-        </div>
+        <Button
+          size="lg"
+          className="w-full"
+          disabled={!canProcess || loading}
+          onClick={handleProcess}
+        >
+          {loading ? "Processing..." : "Convert to document"}
+        </Button>
 
         {error && (
           <p className="text-sm text-destructive">{error}</p>

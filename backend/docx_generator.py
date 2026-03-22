@@ -137,7 +137,7 @@ def _add_divider(doc: Document) -> None:
 
 
 def _render_info_block(doc: Document, item: InfoBlock, images: dict[str, bytes]) -> None:
-    """Render an InfoBlock: first line bold+large (the 'Preguntas X a Y' header), rest normal."""
+    """Render an InfoBlock: first line is the shared-context header (e.g. 'Questions X to Y'), rest normal."""
     lines = _split_lines(item.content)
     for i, line in enumerate(lines):
         if i == 0:
