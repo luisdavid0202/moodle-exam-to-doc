@@ -1,0 +1,19 @@
+name: moodle-exam-to-doc-apps
+
+services:
+  backend:
+    build: ./backend
+    container_name: met-backend
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: met-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: production
+      API_URL: http://backend:8000
+    ports:
+      - "18120:3000"

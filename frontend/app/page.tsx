@@ -4,8 +4,6 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
-const API_URL = "http://localhost:8000"
-
 export default function Page() {
   const [htmlFile, setHtmlFile] = useState<File | null>(null)
   const [zipFile, setZipFile] = useState<File | null>(null)
@@ -37,7 +35,7 @@ export default function Page() {
       body.append("zip_file", zipFile)
       body.append("format", "docx")
 
-      const res = await fetch(`${API_URL}/convert`, { method: "POST", body })
+      const res = await fetch("/api/convert", { method: "POST", body })
 
       if (!res.ok) {
         const detail = await res.json().catch(() => ({ detail: res.statusText }))
